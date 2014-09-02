@@ -64,7 +64,7 @@ enum Key {
     KeyBool(bool),
 }
 
-impl<S> Hash<S> for Key where S: hash::Writer {
+impl<S: hash::Writer> Hash<S> for Key {
     fn hash(&self, state: &mut S) {
         match *self {
             KeyStr(ref s) => s.get().hash(state),
@@ -114,7 +114,7 @@ struct HashState {
     map: Vec<uint>,
 }
 
-fn expand_phf_map(cx: &mut ExtCtxt, sp: Span, tts: &[TokenTree]) -> Box<MacResult+'static> {
+fn expand_phf_map(cx: &mut ExtCtxt, sp: Span, tts: &[TokenTree]) -> Box<MacResult> {
     let entries = match parse_map(cx, tts) {
         Some(entries) => entries,
         None => return DummyResult::expr(sp)
@@ -129,7 +129,7 @@ fn expand_phf_map(cx: &mut ExtCtxt, sp: Span, tts: &[TokenTree]) -> Box<MacResul
     create_map(cx, sp, entries, state)
 }
 
-fn expand_phf_set(cx: &mut ExtCtxt, sp: Span, tts: &[TokenTree]) -> Box<MacResult+'static> {
+fn expand_phf_set(cx: &mut ExtCtxt, sp: Span, tts: &[TokenTree]) -> Box<MacResult> {
     let entries = match parse_set(cx, tts) {
         Some(entries) => entries,
         None => return DummyResult::expr(sp)
@@ -144,7 +144,7 @@ fn expand_phf_set(cx: &mut ExtCtxt, sp: Span, tts: &[TokenTree]) -> Box<MacResul
     create_set(cx, sp, entries, state)
 }
 
-fn expand_phf_ordered_map(cx: &mut ExtCtxt, sp: Span, tts: &[TokenTree]) -> Box<MacResult+'static> {
+fn expand_phf_ordered_map(cx: &mut ExtCtxt, sp: Span, tts: &[TokenTree]) -> Box<MacResult> {
     let entries = match parse_map(cx, tts) {
         Some(entries) => entries,
         None => return DummyResult::expr(sp),
@@ -159,7 +159,7 @@ fn expand_phf_ordered_map(cx: &mut ExtCtxt, sp: Span, tts: &[TokenTree]) -> Box<
     create_ordered_map(cx, sp, entries, state)
 }
 
-fn expand_phf_ordered_set(cx: &mut ExtCtxt, sp: Span, tts: &[TokenTree]) -> Box<MacResult+'static> {
+fn expand_phf_ordered_set(cx: &mut ExtCtxt, sp: Span, tts: &[TokenTree]) -> Box<MacResult> {
     let entries = match parse_set(cx, tts) {
         Some(entries) => entries,
         None => return DummyResult::expr(sp)
@@ -252,18 +252,14 @@ fn parse_key(cx: &mut ExtCtxt, e: &Expr) -> Option<Key> {
                 ast::LitBinary(ref b) => Some(KeyBinary(b.clone())),
                 ast::LitByte(b) => Some(KeyU8(b)),
                 ast::LitChar(c) => Some(KeyChar(c)),
-                ast::LitInt(i, ast::SignedIntLit(ast::TyI8, ast::Plus)) => Some(KeyI8(i as i8)),
-                ast::LitInt(i, ast::SignedIntLit(ast::TyI8, ast::Minus)) => Some(KeyI8(-(i as i8))),
-                ast::LitInt(i, ast::SignedIntLit(ast::TyI16, ast::Plus)) => Some(KeyI16(i as i16)),
-                ast::LitInt(i, ast::SignedIntLit(ast::TyI16, ast::Minus)) => Some(KeyI16(-(i as i16))),
-                ast::LitInt(i, ast::SignedIntLit(ast::TyI32, ast::Plus)) => Some(KeyI32(i as i32)),
-                ast::LitInt(i, ast::SignedIntLit(ast::TyI32, ast::Minus)) => Some(KeyI32(-(i as i32))),
-                ast::LitInt(i, ast::SignedIntLit(ast::TyI64, ast::Plus)) => Some(KeyI64(i as i64)),
-                ast::LitInt(i, ast::SignedIntLit(ast::TyI64, ast::Minus)) => Some(KeyI64(-(i as i64))),
-                ast::LitInt(i, ast::UnsignedIntLit(ast::TyU8)) => Some(KeyU8(i as u8)),
-                ast::LitInt(i, ast::UnsignedIntLit(ast::TyU16)) => Some(KeyU16(i as u16)),
-                ast::LitInt(i, ast::UnsignedIntLit(ast::TyU32)) => Some(KeyU32(i as u32)),
-                ast::LitInt(i, ast::UnsignedIntLit(ast::TyU64)) => Some(KeyU64(i as u64)),
+                ast::LitInt(i, ast::TyI8) => Some(KeyI8(i as i8)),
+                ast::LitInt(i, ast::TyI16) => Some(KeyI16(i as i16)),
+                ast::LitInt(i, ast::TyI32) => Some(KeyI32(i as i32)),
+                ast::LitInt(i, ast::TyI64) => Some(KeyI64(i as i64)),
+                ast::LitUint(i, ast::TyU8) => Some(KeyU8(i as u8)),
+                ast::LitUint(i, ast::TyU16) => Some(KeyU16(i as u16)),
+                ast::LitUint(i, ast::TyU32) => Some(KeyU32(i as u32)),
+                ast::LitUint(i, ast::TyU64) => Some(KeyU64(i as u64)),
                 ast::LitBool(b) => Some(KeyBool(b)),
                 _ => {
                     cx.span_err(e.span, "unsupported literal type");
@@ -412,7 +408,7 @@ fn try_generate_hash(entries: &[Entry], rng: &mut XorShiftRng) -> Option<HashSta
 }
 
 fn create_map(cx: &mut ExtCtxt, sp: Span, entries: Vec<Entry>, state: HashState)
-              -> Box<MacResult+'static> {
+              -> Box<MacResult> {
     let disps = state.disps.iter().map(|&(d1, d2)| {
         quote_expr!(&*cx, ($d1, $d2))
     }).collect();
@@ -433,13 +429,13 @@ fn create_map(cx: &mut ExtCtxt, sp: Span, entries: Vec<Entry>, state: HashState)
 }
 
 fn create_set(cx: &mut ExtCtxt, sp: Span, entries: Vec<Entry>, state: HashState)
-              -> Box<MacResult+'static> {
+              -> Box<MacResult> {
     let map = create_map(cx, sp, entries, state).make_expr().unwrap();
     MacExpr::new(quote_expr!(cx, ::phf::PhfSet { map: $map }))
 }
 
 fn create_ordered_map(cx: &mut ExtCtxt, sp: Span, entries: Vec<Entry>, state: HashState)
-                      -> Box<MacResult+'static> {
+                      -> Box<MacResult> {
     let disps = state.disps.iter().map(|&(d1, d2)| {
         quote_expr!(&*cx, ($d1, $d2))
     }).collect();
@@ -463,7 +459,7 @@ fn create_ordered_map(cx: &mut ExtCtxt, sp: Span, entries: Vec<Entry>, state: Ha
 }
 
 fn create_ordered_set(cx: &mut ExtCtxt, sp: Span, entries: Vec<Entry>, state: HashState)
-                      -> Box<MacResult+'static> {
+                      -> Box<MacResult> {
     let map = create_ordered_map(cx, sp, entries, state).make_expr().unwrap();
     MacExpr::new(quote_expr!(cx, ::phf::PhfOrderedSet { map: $map }))
 }
